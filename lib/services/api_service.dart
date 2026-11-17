@@ -49,18 +49,24 @@ class ApiService {
   bool get hasToken => _token != null;
 
   Future<bool> loadSavedConfig() async {
-    _ip = await _storage.read(key: 'server_ip') ?? defaultIp;
+    final savedIp = await _storage.read(key: 'server_ip');
+    final savedRemote = await _storage.read(key: 'remote_host');
+    _ip = (savedIp == null || savedIp.isEmpty) ? defaultIp : savedIp;
     _port = int.tryParse(await _storage.read(key: 'server_port') ?? '') ??
         defaultPort;
     _token = await _storage.read(key: 'jwt_token');
-    _remote = await _storage.read(key: 'remote_host') ?? defaultRemote;
+    _remote = (savedRemote == null || savedRemote.isEmpty)
+        ? defaultRemote
+        : savedRemote;
     return hasConfig;
   }
 
   Future<void> configure(String? ip, int port, {String? remote}) async {
     _ip = (ip == null || ip.isEmpty) ? null : ip;
     _port = port;
-    _remote = (remote == null || remote.isEmpty) ? null : remote;
+    _remote = remote == null
+        ? (_remote ?? defaultRemote)
+        : (remote.isEmpty ? null : remote);
     _useRemote = false;
     await _storage.write(key: 'server_ip', value: _ip);
     await _storage.write(key: 'server_port', value: port.toString());
@@ -139,6 +145,11 @@ class ApiService {
         statusCode: response.statusCode,
       );
     } on TimeoutException {
+      if (retry && _hasAlternative) {
+        _useRemote = !_useRemote;
+        return _send(method, path,
+            body: body, auth: auth, timeout: timeout, retry: false);
+      }
       return const ApiResult(success: false, message: 'timeout');
     } on SocketException {
       // Sin conexión por esta vía: probar la otra (casa <-> fuera de casa).
