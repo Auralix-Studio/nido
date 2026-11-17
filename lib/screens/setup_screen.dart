@@ -99,7 +99,7 @@ class _SetupScreenState extends State<SetupScreen> {
             label: const Text('discover_server()'),
           ),
           const SizedBox(height: 25),
-          _field('SERVER_IP', _ipController, '192.168.1.100'),
+          _field('SERVER_IP', _ipController, '192.168.1.6'),
           const SizedBox(height: 15),
           _field('PORT', _portController, '8443'),
           const SizedBox(height: 15),

@@ -10,6 +10,8 @@ class ApiService {
 
   static const int defaultPort = 8443;
   static const int discoveryPort = 8444;
+  static const String defaultIp = '192.168.1.6';
+  static const String defaultRemote = 'nido.aurx.pro';
 
   final _storage = const FlutterSecureStorage();
   late final HttpClient _http = HttpClient()
@@ -21,12 +23,12 @@ class ApiService {
     // conexión que el servidor ya cerró.
     ..idleTimeout = const Duration(seconds: 10);
 
-  String? _ip;
+  String? _ip = defaultIp;
   int _port = defaultPort;
   String? _token;
 
   /// Dominio para entrar desde fuera de casa (p. ej. nido.aurx.pro).
-  String? _remote;
+  String? _remote = defaultRemote;
   bool _useRemote = false;
 
   /// Se invoca cuando el servidor rechaza el token (sesión caducada).
@@ -47,11 +49,11 @@ class ApiService {
   bool get hasToken => _token != null;
 
   Future<bool> loadSavedConfig() async {
-    _ip = await _storage.read(key: 'server_ip');
+    _ip = await _storage.read(key: 'server_ip') ?? defaultIp;
     _port = int.tryParse(await _storage.read(key: 'server_port') ?? '') ??
         defaultPort;
     _token = await _storage.read(key: 'jwt_token');
-    _remote = await _storage.read(key: 'remote_host');
+    _remote = await _storage.read(key: 'remote_host') ?? defaultRemote;
     return hasConfig;
   }
 
@@ -192,8 +194,8 @@ class ApiService {
 
   Future<void> resetApp() async {
     _token = null;
-    _ip = null;
-    _remote = null;
+    _ip = defaultIp;
+    _remote = defaultRemote;
     _useRemote = false;
     _port = defaultPort;
     await _storage.deleteAll();
