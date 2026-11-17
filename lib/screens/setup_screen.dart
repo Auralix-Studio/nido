@@ -104,7 +104,7 @@ class _SetupScreenState extends State<SetupScreen> {
           _field('PORT', _portController, '8443'),
           const SizedBox(height: 15),
           _field('REMOTE_HOST (fuera de casa)', _remoteController,
-              'nido.naziventas.shop'),
+              'nido.aurx.pro'),
           const SizedBox(height: 40),
           OutlinedButton(
             onPressed: _busy ? null : _save,

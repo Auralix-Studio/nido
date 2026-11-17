@@ -25,7 +25,7 @@ class ApiService {
   int _port = defaultPort;
   String? _token;
 
-  /// Dominio para entrar desde fuera de casa (p. ej. nido.naziventas.shop).
+  /// Dominio para entrar desde fuera de casa (p. ej. nido.aurx.pro).
   String? _remote;
   bool _useRemote = false;
 
