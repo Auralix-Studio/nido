@@ -17,6 +17,8 @@ class TvTab extends StatefulWidget {
 
 class _TvTabState extends State<TvTab> with Polling {
   Map<String, dynamic>? _status;
+  List<Map<String, dynamic>> _tvs = [];
+  String? _mac; // TV elegida
   List<Map<String, dynamic>> _apps = [];
   String? _error;
   bool _busy = false;
@@ -32,9 +34,43 @@ class _TvTabState extends State<TvTab> with Polling {
     super.dispose();
   }
 
+  String get _macQuery =>
+      _mac == null ? '' : '?mac=${Uri.encodeQueryComponent(_mac!)}';
+
+  Future<void> _loadTvs() async {
+    final result = await ApiService.instance.get('/tv/list', timeout: 20);
+    if (!mounted || !result.success) return;
+    final tvs = [
+      for (final tv in result.data['tvs'] as List? ?? [])
+        Map<String, dynamic>.from(tv)
+    ];
+    setState(() {
+      _tvs = tvs;
+      final stillThere = tvs.any((tv) => tv['mac'] == _mac);
+      if (!stillThere) {
+        // Por defecto, la primera compatible
+        final lg = tvs.where((tv) => tv['kind'] == 'lg');
+        _mac = (lg.isNotEmpty
+            ? lg.first
+            : (tvs.isNotEmpty ? tvs.first : null))?['mac'];
+      }
+    });
+  }
+
+  void _select(String mac) {
+    setState(() {
+      _mac = mac;
+      _status = null;
+      _apps = [];
+    });
+    refresh();
+  }
+
   @override
   Future<void> refresh() async {
-    final result = await ApiService.instance.get('/tv/status', timeout: 20);
+    if (_tvs.isEmpty) await _loadTvs();
+    final result =
+        await ApiService.instance.get('/tv/status$_macQuery', timeout: 20);
     if (!mounted) return;
     setState(() {
       if (result.success) {
@@ -44,11 +80,17 @@ class _TvTabState extends State<TvTab> with Polling {
         _error = result.message;
       }
     });
-    if (_apps.isEmpty && _status?['online'] == true) _loadApps();
+    if (_apps.isEmpty &&
+        _status?['paired'] == true &&
+        _status?['kind'] == 'lg' &&
+        _status?['error'] == null) {
+      _loadApps();
+    }
   }
 
   Future<void> _loadApps() async {
-    final result = await ApiService.instance.get('/tv/apps', timeout: 20);
+    final result =
+        await ApiService.instance.get('/tv/apps$_macQuery', timeout: 20);
     if (!mounted || !result.success) return;
     setState(() => _apps = [
           for (final app in result.data['apps'] as List? ?? [])
@@ -58,8 +100,8 @@ class _TvTabState extends State<TvTab> with Polling {
 
   Future<void> _send(String action, [String value = '']) async {
     HapticFeedback.lightImpact();
-    final result = await ApiService.instance
-        .post('/tv/command', {'action': action, 'value': value}, 20);
+    final result = await ApiService.instance.post('/tv/command',
+        {'mac': _mac ?? '', 'action': action, 'value': value}, 20);
     if (!mounted) return;
     if (!result.success) {
       TerminalMessenger.show(context, 'ERR: ${result.message}', isError: true);
@@ -74,7 +116,8 @@ class _TvTabState extends State<TvTab> with Polling {
   Future<void> _pair() async {
     setState(() => _busy = true);
     TerminalMessenger.show(context, 'ACEPTA EL AVISO EN LA PANTALLA DE LA TV');
-    final result = await ApiService.instance.post('/tv/pair', null, 75);
+    final result =
+        await ApiService.instance.post('/tv/pair', {'mac': _mac ?? ''}, 75);
     if (!mounted) return;
     setState(() => _busy = false);
     TerminalMessenger.show(
@@ -103,10 +146,14 @@ class _TvTabState extends State<TvTab> with Polling {
     }
     final online = status['online'] == true;
     final paired = status['paired'] == true;
+    final compatible = status['kind'] == 'lg';
     final host = '${status['host'] ?? ''}';
 
     return RefreshIndicator(
-      onRefresh: refresh,
+      onRefresh: () async {
+        await _loadTvs();
+        await refresh();
+      },
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -118,6 +165,17 @@ class _TvTabState extends State<TvTab> with Polling {
                     style: const TextStyle(
                         fontSize: 11, color: AppColors.comment)),
               ])),
+          if (_tvs.length > 1) ...[
+            FilterBar(
+              options: [
+                for (final tv in _tvs)
+                  '${tv['name'] ?? tv['ip']}${tv['kind'] == 'lg' ? '' : ' (${tv['kind'] == 'androidtv' ? 'android' : '?'})'}'
+              ],
+              selected: _tvs.indexWhere((tv) => tv['mac'] == _mac),
+              onSelected: (index) => _select('${_tvs[index]['mac']}'),
+            ),
+            const SizedBox(height: 15),
+          ],
           if (host.isEmpty)
             TerminalMessenger.inlineBanner('TV_NOT_FOUND',
                 'Ponle la etiqueta "tv" a tu TV en la pestaña network.',
@@ -136,15 +194,15 @@ class _TvTabState extends State<TvTab> with Polling {
                   isError: true),
             ],
             const SizedBox(height: 15),
-            if (!paired || status['error'] != null)
+            if (compatible && (!paired || status['error'] != null))
               OutlinedButton.icon(
                 onPressed: _busy || !online ? null : _pair,
                 icon: const Icon(Icons.link, size: 16),
                 label: Text(online ? 'pair()' : 'pair() — enciende la TV'),
               ),
             const SizedBox(height: 10),
-            _powerRow(online),
-            if (online && paired) ...[
+            if (compatible) _powerRow(online),
+            if (online && paired && compatible) ...[
               const SizedBox(height: 20),
               _volume(status),
               const SizedBox(height: 20),
@@ -207,8 +265,7 @@ class _TvTabState extends State<TvTab> with Polling {
           onPressed: () => _send('mute', (!muted).toString()),
         ),
         Expanded(
-          child: Slider(
-              value: value, min: 0, max: 100, onChanged: _setVolume),
+          child: Slider(value: value, min: 0, max: 100, onChanged: _setVolume),
         ),
         SizedBox(
           width: 32,
@@ -227,8 +284,7 @@ class _TvTabState extends State<TvTab> with Polling {
       child: OutlinedButton(
         style: OutlinedButton.styleFrom(
           padding: EdgeInsets.zero,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         onPressed: () => _send('button', button),
         child: Icon(icon, size: 22),
@@ -261,8 +317,8 @@ class _TvTabState extends State<TvTab> with Polling {
   }
 
   Widget _mediaRow() {
-    Widget media(IconData icon, String action) => IconButton(
-        icon: Icon(icon, size: 22), onPressed: () => _send(action));
+    Widget media(IconData icon, String action) =>
+        IconButton(icon: Icon(icon, size: 22), onPressed: () => _send(action));
     return Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
       media(Icons.fast_rewind, 'rewind'),
       media(Icons.play_arrow, 'play'),
