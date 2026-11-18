@@ -69,15 +69,26 @@ class _NetworkTabState extends State<NetworkTab> with Polling {
     }).toList();
   }
 
+  /// Pide un escaneo nuevo y espera a que termine (hasta 25 s), en vez de
+  /// mostrar la lista anterior.
   Future<void> _scan() async {
     HapticFeedback.lightImpact();
+    final before = _data?['last_scan'] as num?;
     final result = await ApiService.instance.post('/network/scan');
     if (!mounted) return;
-    TerminalMessenger.show(
-        context, result.success ? 'SCAN_STARTED' : 'ERR: ${result.message}',
-        isSuccess: result.success, isError: !result.success);
-    await Future.delayed(const Duration(seconds: 1));
-    refresh();
+    if (!result.success) {
+      TerminalMessenger.show(context, 'ERR: ${result.message}', isError: true);
+      return;
+    }
+    setState(() => _data?['scanning'] = true);
+    for (int i = 0; i < 25 && mounted; i++) {
+      await Future.delayed(const Duration(seconds: 1));
+      await refresh();
+      final after = _data?['last_scan'] as num?;
+      if (after != null && after != before && _data?['scanning'] != true) {
+        return;
+      }
+    }
   }
 
   Future<void> _trustAll() async {
@@ -117,7 +128,7 @@ class _NetworkTabState extends State<NetworkTab> with Polling {
     final scanning = data['scanning'] == true;
 
     return RefreshIndicator(
-      onRefresh: refresh,
+      onRefresh: _scan,
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
