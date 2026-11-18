@@ -48,6 +48,7 @@ class _AlertsTabState extends State<AlertsTab> with Polling {
         'auth' => (Icons.lock_outline, Colors.redAccent),
         'power' => (Icons.power_settings_new, Colors.orangeAccent),
         'block' => (Icons.block, Colors.redAccent),
+        'tv' => (Icons.tv, AppColors.function),
         _ => (Icons.info_outline, AppColors.function),
       };
 

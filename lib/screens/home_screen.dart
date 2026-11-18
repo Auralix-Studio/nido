@@ -8,6 +8,7 @@ import 'login_screen.dart';
 import 'network_tab.dart';
 import 'server_tab.dart';
 import 'services_tab.dart';
+import 'tv_tab.dart';
 import 'setup_screen.dart';
 
 /// Refresco periódico mientras la pestaña está en pantalla.
@@ -96,6 +97,7 @@ class _HomeScreenState extends State<HomeScreen> with Polling {
         0 => const ServerTab(),
         1 => const ServicesTab(),
         2 => const NetworkTab(),
+        3 => const TvTab(),
         _ => AlertsTab(onRead: () => setState(() => _unread = 0)),
       },
       bottomNavigationBar: NavigationBar(
@@ -109,6 +111,8 @@ class _HomeScreenState extends State<HomeScreen> with Polling {
               icon: Icon(Icons.widgets_outlined), label: 'services'),
           const NavigationDestination(
               icon: Icon(Icons.lan_outlined), label: 'network'),
+          const NavigationDestination(
+              icon: Icon(Icons.tv_outlined), label: 'tv'),
           NavigationDestination(
               icon: Badge(
                   isLabelVisible: _unread > 0,
